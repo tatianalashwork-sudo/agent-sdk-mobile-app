@@ -6,7 +6,8 @@
  * test-connection flow arrive in milestone 3.
  */
 import { router } from "expo-router";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { useEffect } from "react";
+import { Platform, ScrollView, StyleSheet, View } from "react-native";
 
 import { Screen } from "../components/ui/Screen";
 import { StatusDot } from "../components/ui/StatusDot";
@@ -65,7 +66,15 @@ function ModeCard({
 
 export default function ConnectScreen() {
   const { colors } = useTheme();
-  const { profiles, activeProfile, setActive } = useProfiles();
+  const { loaded, profiles, activeProfile, setActive } = useProfiles();
+
+  // The private web deployment authenticates at the Worker before the app is
+  // served. Its server-side Letta key is injected by the proxy, so there is no
+  // browser API-key entry screen on web.
+  useEffect(() => {
+    if (Platform.OS === "web" && loaded && activeProfile) router.replace("/agents");
+  }, [loaded, activeProfile]);
+
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>

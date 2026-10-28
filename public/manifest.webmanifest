@@ -1,0 +1,16 @@
+{
+  "name": "Bloop — Letta agent controller",
+  "short_name": "Bloop",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#161618",
+  "theme_color": "#161618",
+  "icons": [
+    {
+      "src": "/bloop-icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

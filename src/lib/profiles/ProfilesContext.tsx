@@ -14,6 +14,7 @@ import {
 } from "react";
 
 import {
+  ensureWebProxyProfile,
   getActiveProfileId,
   listProfiles,
   setActiveProfileId,
@@ -50,12 +51,14 @@ export function ProfilesProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([listProfiles(), getActiveProfileId()]).then(([list, active]) => {
+    void (async () => {
+      await ensureWebProxyProfile();
+      const [list, active] = await Promise.all([listProfiles(), getActiveProfileId()]);
       if (cancelled) return;
       setProfiles(list);
       setActiveId(active);
       setLoaded(true);
-    });
+    })();
     return () => {
       cancelled = true;
     };

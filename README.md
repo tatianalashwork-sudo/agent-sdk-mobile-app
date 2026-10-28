@@ -28,6 +28,39 @@ bunx expo start --tunnel
 
 Scan the QR code shown in the terminal with your phone.
 
+## Private browser app (PWA)
+
+The web build uses the same Agent SDK and the same Letta Cloud agents. The browser
+talks to this app's same-origin Worker; the real Letta API key is stored as a Worker
+secret and is never bundled into the browser. The Worker requires a private access
+code, then proxies the SDK's REST and status-WebSocket traffic to Letta Cloud.
+
+Build the static web app:
+
+```bash
+bun install --frozen-lockfile
+bun run web:build
+```
+
+For local testing, create a gitignored `.dev.vars` file with **test-only values**:
+
+```text
+ACCESS_CODE=local-test-code
+LETTA_API_KEY=dummy-not-a-real-key
+```
+
+Then run `bun run web:dev`. On Cloudflare, set the two production secrets in the
+Worker dashboard or with `wrangler secret put ACCESS_CODE` and
+`wrangler secret put LETTA_API_KEY`, then run `bun run web:deploy`. Never put either
+value in source code, Expo environment variables, or a GitHub repository. The access
+cookie is HTTP-only, Secure, SameSite=Lax, signed, and expires after 30 days. Use a
+long, random access code; changing it invalidates existing cookies.
+
+Once opened in Safari over HTTPS, use Share → Add to Home Screen to install it on
+iPhone. Web access requires the Worker because Letta Cloud rejects direct browser
+API calls by CORS policy; the Worker removes browser origin headers and injects the
+server-side key. Native iOS and Android profiles continue to connect directly.
+
 To build the native app locally instead:
 
 ```bash

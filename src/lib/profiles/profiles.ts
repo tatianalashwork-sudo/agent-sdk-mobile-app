@@ -38,7 +38,35 @@ const secretKey = (id: string) => `letta.secret.${id}`;
 const credentialRefreshes = new Map<string, Promise<string>>();
 const deletingProfiles = new Set<string>();
 
-export const CLOUD_DEFAULT_URL = "https://api.letta.com";
+const isBrowser = typeof window !== "undefined";
+
+/** The web client uses a same-origin private proxy; native stays direct. */
+export const CLOUD_DEFAULT_URL = isBrowser
+  ? `${window.location.origin}/api`
+  : "https://api.letta.com";
+
+/** The browser receives only this placeholder; the Worker replaces it. */
+export const WEB_PROXY_PROFILE_ID = "profile-web-proxy";
+export const WEB_PROXY_PLACEHOLDER_KEY = "proxy";
+
+/** Create/select the same-origin proxy profile without storing an API key. */
+export async function ensureWebProxyProfile(): Promise<void> {
+  if (!isBrowser) return;
+  const profiles = await listProfiles();
+  const profile: Profile = {
+    id: WEB_PROXY_PROFILE_ID,
+    type: "cloud",
+    name: "Letta Cloud",
+    url: CLOUD_DEFAULT_URL,
+    authMethod: "api_key",
+    createdAt: Date.now(),
+  };
+  const index = profiles.findIndex((item) => item.id === WEB_PROXY_PROFILE_ID);
+  if (index < 0) profiles.push(profile);
+  else profiles[index] = { ...profiles[index]!, ...profile, createdAt: profiles[index]!.createdAt };
+  await writeProfiles(profiles);
+  await setActiveProfileId(WEB_PROXY_PROFILE_ID);
+}
 
 export async function listProfiles(): Promise<Profile[]> {
   const raw = await AsyncStorage.getItem(INDEX_KEY);
@@ -55,13 +83,16 @@ async function writeProfiles(profiles: Profile[]): Promise<void> {
 }
 
 export async function saveProfile(profile: Profile, secret: string | null): Promise<void> {
+  if (isBrowser && profile.id !== WEB_PROXY_PROFILE_ID && secret) {
+    throw new Error("Web connections use the protected server proxy; API keys are not stored in this browser.");
+  }
   const profiles = await listProfiles();
   const index = profiles.findIndex((p) => p.id === profile.id);
   if (index === -1) profiles.push(profile);
   else profiles[index] = profile;
   await writeProfiles(profiles);
   // Empty secret means "keep the stored one" when editing.
-  if (secret !== null && secret.length > 0) {
+  if (!isBrowser && secret !== null && secret.length > 0) {
     await SecureStore.setItemAsync(secretKey(profile.id), secret);
   }
 }
@@ -77,6 +108,12 @@ export async function saveOAuthProfile(
 }
 
 export async function deleteProfile(id: string): Promise<void> {
+  if (isBrowser) {
+    const profiles = (await listProfiles()).filter((p) => p.id !== id);
+    await writeProfiles(profiles);
+    if ((await getActiveProfileId()) === id) await AsyncStorage.removeItem(ACTIVE_KEY);
+    return;
+  }
   deletingProfiles.add(id);
   try {
     // A refresh can rotate the refresh token. Wait for it, then revoke the
@@ -109,6 +146,7 @@ export async function deleteProfile(id: string): Promise<void> {
 
 /** Secrets never leave this module except through this call at connect time. */
 export async function getSecret(id: string): Promise<string | null> {
+  if (isBrowser) return id === WEB_PROXY_PROFILE_ID ? WEB_PROXY_PLACEHOLDER_KEY : null;
   if (deletingProfiles.has(id)) return null;
   const stored = await SecureStore.getItemAsync(secretKey(id));
   if (!stored || deletingProfiles.has(id)) return null;
@@ -128,6 +166,7 @@ export async function getSecret(id: string): Promise<string | null> {
 }
 
 export async function hasSecret(id: string): Promise<boolean> {
+  if (isBrowser) return id === WEB_PROXY_PROFILE_ID;
   return (await SecureStore.getItemAsync(secretKey(id))) !== null;
 }
 
